@@ -3,257 +3,241 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>清邁·慢旅 (地圖導航版)</title>
+    <title>清邁漫遊 - 記帳修正版</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500&family=Noto+Sans+TC:wght@300;400;500&display=swap');
-        body { font-family: 'Noto Sans TC', sans-serif; background-color: #FAF9F6; color: #57534E; }
-        .serif { font-family: 'Noto Serif TC', serif; }
-        .day-active { background-color: #78716C !important; color: #FFFFFF !important; }
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .safe-pb { padding-bottom: calc(5rem + env(safe-area-inset-bottom)); }
+        .active-day { background-color: #3B82F6 !important; color: white !important; }
+        .glass-nav { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-top: 1px solid #E2E8F0; }
+        .card { background: white; border-radius: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 12px; padding: 16px; }
+        input, select, textarea { border: 1px solid #F1F5F9 !important; border-radius: 12px !important; }
     </style>
 </head>
-<body class="safe-pb">
-    <div id="app" class="max-w-md mx-auto min-h-screen relative">
+<body>
+    <div id="app" class="max-w-md mx-auto min-h-screen pb-28 relative">
         
-        <header v-if="['itinerary', 'finance', 'data'].includes(currentView)" class="p-8 pb-4">
-            <h1 class="text-3xl serif tracking-wider text-stone-800">清邁 · 慢旅</h1>
-            <p class="text-[10px] text-stone-400 mt-1 uppercase tracking-widest">{{ currentView === 'data' ? 'Data Management' : 'Navigation & Plans' }}</p>
+        <header class="bg-white px-6 pt-6 pb-4 sticky top-0 z-40">
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-xl font-bold text-slate-800">清邁漫遊 <span class="text-blue-500">2026</span></h1>
+                <div class="flex space-x-3">
+                    <button @click="tab = 'shopping'" class="text-slate-400 p-1"><i data-lucide="shopping-bag" class="w-5 h-5"></i></button>
+                    <button @click="tab = 'info'" class="text-slate-400 p-1"><i data-lucide="share-2" class="w-5 h-5"></i></button>
+                </div>
+            </div>
+
+            <div class="flex overflow-x-auto hide-scrollbar space-x-2 py-1">
+                <button @click="currentDay = 'TODO'; tab = 'itinerary'" :class="['flex-shrink-0 px-5 py-2 rounded-xl text-xs font-bold transition-all border', currentDay === 'TODO' ? 'active-day' : 'bg-white text-slate-400 border-slate-100']">TODO</button>
+                <button v-for="d in 5" :key="d" @click="currentDay = d; tab = 'itinerary'" :class="['flex-shrink-0 px-5 py-2 rounded-xl text-xs font-bold transition-all border', currentDay === d ? 'active-day' : 'bg-white text-slate-400 border-slate-100']">Day {{ d }}</button>
+            </div>
         </header>
 
-        <div v-if="currentView === 'itinerary' || currentView === 'finance'" class="flex overflow-x-auto px-8 py-2 gap-3 hide-scrollbar">
-            <button @click="activeTab = 'todo'" :class="['flex-shrink-0 px-5 py-1.5 rounded-full text-xs transition-all border', activeTab === 'todo' ? 'day-active' : 'bg-white border-stone-200']">📋 TODO</button>
-            <button v-for="n in 5" :key="n" @click="activeTab = n" :class="['flex-shrink-0 px-5 py-1.5 rounded-full text-xs transition-all border', activeTab === n ? 'day-active' : 'bg-white border-stone-200']">DAY {{ n }}</button>
-        </div>
+        <main class="px-5 mt-4">
+            <div v-if="tab === 'expense'" class="space-y-4">
+                <div class="bg-slate-800 p-6 rounded-[24px] text-white shadow-xl">
+                    <p class="text-[10px] opacity-50 mb-1 tracking-widest uppercase">總支出 (約台幣)</p>
+                    <h2 class="text-4xl font-bold">NT$ {{ getAllTotal }}</h2>
+                    <div class="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
+                        <span class="text-[10px] opacity-50 uppercase">Day {{currentDay === 'TODO' ? '?' : currentDay}} 支出</span>
+                        <span class="text-xs font-bold text-blue-300">NT$ {{ getDayTotal(currentDay) }}</span>
+                    </div>
+                </div>
 
-        <main class="px-8 mt-4">
-            
-            <div v-if="currentView === 'itinerary' && activeTab !== 'todo'">
-                <div v-for="(item, index) in itinerary[activeTab]" :key="index" class="relative pl-6 border-l border-stone-200 mb-6">
-                    <div class="absolute -left-[4.5px] top-0 w-2 h-2 rounded-full bg-stone-300"></div>
-                    <div class="flex justify-between items-start">
-                        <span :class="['text-[9px] px-2 py-0.5 rounded uppercase font-bold', item.type === '交通' ? 'bg-blue-50 text-blue-500' : 'text-stone-400 bg-stone-100']">
-                            {{ item.time }} — {{ item.type }}
-                        </span>
-                        <div class="flex gap-3">
-                            <button @click="openGoogleMaps(item.location)" v-if="item.type !== '交通'" class="text-blue-500">
-                                <i data-lucide="navigation" class="w-4 h-4"></i>
-                            </button>
-                            <button @click="itinerary[activeTab].splice(index, 1)" class="text-stone-200">✕</button>
+                <div v-if="currentDay !== 'TODO'" class="card">
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <select v-model="expCurrency" class="bg-slate-50 p-3 text-sm outline-none">
+                            <option value="THB">泰銖 (THB)</option>
+                            <option value="TWD">台幣 (TWD)</option>
+                        </select>
+                        <input v-model.number="expAmount" type="number" placeholder="金額" class="bg-slate-50 p-3 text-sm outline-none">
+                    </div>
+                    <input v-model="expNote" type="text" placeholder="支出品項..." class="w-full bg-slate-50 p-3 mb-3 text-sm outline-none">
+                    <button @click="addExpense" class="w-full bg-blue-500 text-white py-3.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-100">紀錄至 Day {{currentDay}}</button>
+                </div>
+                <div v-else class="text-center p-8 text-slate-400 text-xs">請先選擇上方 Day 1-5 進行記帳</div>
+
+                <div v-if="currentDay !== 'TODO'">
+                    <div v-for="(e, i) in (expenses[currentDay] || [])" :key="i" class="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-50 mb-2 shadow-sm">
+                        <div class="flex-1">
+                            <span class="text-xs text-slate-600 block font-medium">{{ e.note }}</span>
+                            <span class="text-[10px] text-slate-400 uppercase tracking-tighter">{{ e.currency }} {{ e.amount }}</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <span class="text-xs font-bold text-slate-800">
+                                NT$ {{ e.currency === 'THB' ? Math.round(e.amount * rateTHB) : e.amount }}
+                            </span>
+                            <button @click="expenses[currentDay].splice(i, 1)" class="text-red-200 hover:text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                         </div>
                     </div>
-                    <h3 class="font-medium text-stone-800 mt-1">{{ item.location }}</h3>
                 </div>
-                
-                <div v-if="itinerary[activeTab].length > 0" class="mb-6">
-                    <button @click="planDailyRoute" class="w-full py-4 bg-stone-100 rounded-2xl flex items-center justify-center gap-2 text-stone-600 text-xs font-bold border border-stone-200">
-                        <i data-lucide="map" class="w-4 h-4"></i> 規劃今日所有景點路線
-                    </button>
-                </div>
-
-                <button @click="showAddModal = true" class="w-full py-4 border border-dashed border-stone-300 rounded-2xl text-stone-400 text-xs">+ 新增行程/交通</button>
             </div>
 
-            <div v-if="currentView === 'finance'">
-                <div class="text-center py-8 bg-stone-800 text-white rounded-[24px] mb-6 shadow-sm">
-                    <p class="text-[10px] opacity-60 uppercase tracking-widest">Day {{activeTab}} Total</p>
-                    <h2 class="text-3xl serif mt-2 font-light">฿ {{ calculateDayTotal(activeTab) }}</h2>
-                </div>
-                <div v-for="(exp, i) in expenses[activeTab]" :key="i" class="flex justify-between items-center text-sm mb-3 border-b border-stone-50 pb-2">
-                    <span class="font-light">{{exp.title}}</span>
-                    <div class="flex items-center gap-4">
-                        <span class="font-medium">฿{{exp.amount}}</span>
-                        <button @click="expenses[activeTab].splice(i, 1)" class="text-stone-200">✕</button>
+            <div v-if="tab === 'itinerary' && currentDay === 'TODO'">
+                <div class="card">
+                    <h2 class="text-blue-500 font-bold mb-4 flex items-center text-sm"><i data-lucide="check-square" class="mr-2 w-4 h-4"></i> 行前待辦</h2>
+                    <div class="flex mb-4">
+                        <input v-model="tempTodo" @keyup.enter="addTodo" type="text" placeholder="新增事項..." class="flex-1 bg-slate-50 p-3 text-sm outline-none">
+                        <button @click="addTodo" class="bg-blue-500 text-white px-4 rounded-r-xl"><i data-lucide="plus"></i></button>
                     </div>
-                </div>
-                <div class="flex gap-2 mt-6">
-                    <input v-model="newExp.title" placeholder="項目" class="flex-1 bg-white border border-stone-100 p-3 rounded-xl text-xs outline-none">
-                    <input v-model.number="newExp.amount" placeholder="金額" class="w-20 bg-white border border-stone-100 p-3 rounded-xl text-xs outline-none">
-                    <button @click="addExpense" class="bg-stone-800 text-white px-5 rounded-xl text-xs">加</button>
-                </div>
-            </div>
-
-            <div v-if="currentView === 'itinerary' && activeTab === 'todo'">
-                <div v-for="(t, i) in todos" :key="i" class="flex items-center gap-3 mb-3">
-                    <input type="checkbox" v-model="t.done" class="w-4 h-4 accent-stone-700">
-                    <span :class="{'line-through text-stone-300': t.done}" class="flex-1 text-sm font-light">{{t.text}}</span>
-                    <button @click="todos.splice(i, 1)" class="text-stone-200">✕</button>
-                </div>
-                <div class="flex gap-2 mt-4">
-                    <input v-model="newTodo" @keyup.enter="addTodo" placeholder="待辦事項..." class="flex-1 bg-transparent border-b p-2 text-sm outline-none">
-                    <button @click="addTodo">＋</button>
-                </div>
-            </div>
-
-            <div v-if="currentView === 'shopping'" class="pt-8">
-                <h2 class="serif text-2xl mb-6">Shopping List</h2>
-                <div v-for="(s, i) in shoppingList" :key="i" class="flex items-center gap-3 mb-3">
-                    <input type="checkbox" v-model="s.done" class="accent-stone-700"><span :class="{'line-through text-stone-300': s.done}" class="flex-1 text-sm font-light">{{s.text}}</span><button @click="shoppingList.splice(i,1)" class="text-stone-200">✕</button>
-                </div>
-                <div class="flex gap-2 mt-4 border-b pb-2">
-                    <input v-model="newShopItem" @keyup.enter="addShopItem" placeholder="必買清單..." class="flex-1 bg-transparent text-sm outline-none"><button @click="addShopItem">＋</button>
-                </div>
-            </div>
-
-            <div v-if="currentView === 'data'" class="space-y-6">
-                <div class="bg-stone-100 p-4 rounded-xl text-[11px] text-stone-500 leading-relaxed">
-                    <strong>共享教學：</strong> 複製下方代碼傳給朋友，讓他在他的手機點擊「確認還原」即可。
-                </div>
-                <div class="space-y-4">
-                    <h3 class="text-xs font-bold">我的備份碼：</h3>
-                    <textarea v-model="backupString" class="w-full h-32 p-3 text-[10px] bg-white border rounded-xl" readonly></textarea>
-                    <button @click="copyBackup" class="w-full py-3 bg-stone-800 text-white rounded-xl text-xs">複製備份碼</button>
-                    <div class="pt-6 border-t">
-                        <h3 class="text-xs font-bold text-blue-600 mb-2">還原資料：</h3>
-                        <textarea v-model="restoreString" placeholder="貼上朋友給的代碼..." class="w-full h-32 p-3 text-[10px] border rounded-xl"></textarea>
-                        <button @click="restoreData" class="w-full mt-2 py-3 bg-blue-500 text-white rounded-xl text-xs">確認還原</button>
+                    <div v-for="(t, i) in todos" :key="i" class="flex items-center space-x-3 py-3 border-b border-slate-50 last:border-0">
+                        <input type="checkbox" v-model="t.done" class="w-5 h-5 rounded-full border-slate-200">
+                        <span :class="{'line-through text-slate-300': t.done}" class="text-sm text-slate-600 flex-1">{{ t.text }}</span>
+                        <button @click="todos.splice(i, 1)" class="text-red-300 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </div>
                 </div>
             </div>
 
+            <div v-if="tab === 'itinerary' && typeof currentDay === 'number'">
+                <div v-for="(item, idx) in itineraries[currentDay]" :key="idx" class="card">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-500 rounded uppercase tracking-wider">{{ item.category }} | {{ item.time }}</span>
+                        <button @click="removeItinerary(idx)" class="text-slate-200"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                    <h3 class="text-slate-700 font-bold text-base">{{ item.location }}</h3>
+                    <div class="flex space-x-2 mt-4">
+                        <a :href="'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(item.location)" target="_blank" class="flex-1 bg-slate-50 py-2.5 rounded-xl text-center text-[10px] text-slate-500 font-bold border border-slate-100">查看地圖</a>
+                        <a :href="'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(item.location)" target="_blank" class="flex-1 bg-blue-500 py-2.5 rounded-xl text-center text-[10px] text-white font-bold shadow-lg shadow-blue-100">開始導航</a>
+                    </div>
+                </div>
+                <button @click="showAddModal = true" class="w-full py-5 rounded-[20px] border-2 border-dashed border-blue-200 text-blue-400 flex justify-center items-center bg-white/50"><i data-lucide="plus" class="mr-2"></i> 新增行程</button>
+            </div>
+
+            <div v-if="tab === 'shopping'" class="card min-h-[400px]">
+                <h2 class="text-orange-500 font-bold mb-4 flex items-center text-sm"><i data-lucide="shopping-bag" class="mr-2 w-4 h-4"></i> 必買清單</h2>
+                <div class="flex mb-4">
+                    <input v-model="tempShop" @keyup.enter="addShop" type="text" placeholder="想買什麼？" class="flex-1 bg-slate-50 p-3 text-sm outline-none">
+                    <button @click="addShop" class="bg-orange-400 text-white px-4 rounded-r-xl"><i data-lucide="plus"></i></button>
+                </div>
+                <div v-for="(s, i) in shoppingList" :key="i" class="flex items-center space-x-3 py-3 border-b border-orange-50 last:border-0">
+                    <input type="checkbox" v-model="s.done" class="w-5 h-5 rounded-full border-orange-200 text-orange-400">
+                    <span :class="{'line-through text-slate-300': s.done}" class="text-sm text-slate-600 flex-1">{{ s.text }}</span>
+                    <button @click="shoppingList.splice(i, 1)" class="text-red-200"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </div>
+            </div>
+
+            <div v-if="tab === 'info'" class="space-y-4">
+                <div class="card border-2 border-blue-100">
+                    <h2 class="text-blue-500 font-bold mb-3 flex items-center text-sm"><i data-lucide="refresh-cw" class="mr-2 w-4 h-4"></i> 同步與共享</h2>
+                    <div class="flex space-x-2">
+                        <button @click="exportCode" class="flex-1 bg-blue-500 text-white py-3 rounded-xl text-xs font-bold shadow-lg shadow-blue-100">複製共享碼</button>
+                        <button @click="importCode" class="flex-1 bg-slate-800 text-white py-3 rounded-xl text-xs font-bold">貼上導入碼</button>
+                    </div>
+                </div>
+                <button @click="resetData" class="w-full py-4 text-[9px] text-slate-300 tracking-widest uppercase">清空所有存檔</button>
+            </div>
         </main>
 
-        <nav class="fixed bottom-8 left-1/2 -translate-x-1/2 w-[320px] bg-stone-800/95 backdrop-blur-md px-4 py-3 rounded-full flex justify-between items-center shadow-2xl z-40">
-            <button @click="currentView = 'itinerary'" :class="currentView === 'itinerary' ? 'text-white' : 'text-stone-500'" class="flex-1 flex flex-col items-center">
-                <i data-lucide="calendar" class="w-5 h-5"></i>
-                <span class="text-[8px] mt-1">行程</span>
-            </button>
-            <button @click="currentView = 'finance'" :class="currentView === 'finance' ? 'text-white' : 'text-stone-500'" class="flex-1 flex flex-col items-center border-l border-stone-700">
-                <i data-lucide="banknote" class="w-5 h-5"></i>
-                <span class="text-[8px] mt-1">記帳</span>
-            </button>
-            <button @click="currentView = 'shopping'" :class="currentView === 'shopping' ? 'text-white' : 'text-stone-500'" class="flex-1 flex flex-col items-center border-l border-stone-700">
-                <i data-lucide="shopping-bag" class="w-5 h-5"></i>
-                <span class="text-[8px] mt-1">購物</span>
-            </button>
-            <button @click="currentView = 'data'" :class="currentView === 'data' ? 'text-white' : 'text-stone-500'" class="flex-1 flex flex-col items-center border-l border-stone-700">
-                <i data-lucide="database" class="w-5 h-5"></i>
-                <span class="text-[8px] mt-1">資料</span>
-            </button>
+        <nav class="fixed bottom-0 left-0 right-0 glass-nav h-20 flex justify-around items-center px-6 z-50">
+            <button @click="tab = 'itinerary'" :class="tab === 'itinerary' ? 'text-blue-500' : 'text-slate-300'"><i data-lucide="map-pin"></i><span class="block text-[10px] mt-1 font-bold">行程</span></button>
+            <button @click="tab = 'expense'" :class="tab === 'expense' ? 'text-blue-500' : 'text-slate-300'"><i data-lucide="credit-card"></i><span class="block text-[10px] mt-1 font-bold">記帳</span></button>
+            <button @click="tab = 'shopping'" :class="tab === 'shopping' ? 'text-orange-400' : 'text-slate-300'"><i data-lucide="shopping-bag"></i><span class="block text-[10px] mt-1 font-bold">清單</span></button>
+            <button @click="tab = 'info'" :class="tab === 'info' ? 'text-blue-500' : 'text-slate-300'"><i data-lucide="share-2"></i><span class="block text-[10px] mt-1 font-bold">共享</span></button>
         </nav>
 
-        <div v-if="showAddModal" class="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-8">
-            <div class="bg-white w-full rounded-[32px] p-8 space-y-4">
-                <input v-model="tempItem.location" placeholder="地點或交通 (如: Akha Ama Coffee)" class="w-full border-b p-2 text-sm outline-none">
-                <div class="flex gap-2">
-                    <input type="time" v-model="tempItem.time" class="flex-1 border-b p-2 text-xs">
-                    <select v-model="tempItem.type" class="flex-1 border-b p-2 text-xs bg-transparent">
-                        <option>咖啡廳</option><option>景點</option><option>餐廳</option><option>市集</option><option>交通</option>
-                    </select>
+        <div v-if="showAddModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-end">
+            <div class="bg-white w-full rounded-t-[32px] p-8 shadow-2xl">
+                <h3 class="text-lg font-bold mb-6">新增行程至 Day {{currentDay}}</h3>
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <select v-model="newEntry.category" class="bg-slate-50 p-4 text-sm outline-none"><option>景點</option><option>交通</option><option>航班</option><option>美食</option><option>購物</option></select>
+                    <input v-model="newEntry.time" type="time" class="bg-slate-50 p-4 text-sm outline-none">
                 </div>
-                <button @click="saveItem" class="w-full py-3 bg-stone-800 text-white rounded-2xl text-xs mt-4">儲存</button>
-                <button @click="showAddModal = false" class="w-full text-[10px] text-stone-300 text-center">取消</button>
+                <input v-model="newEntry.location" type="text" placeholder="地點名稱" class="w-full bg-slate-50 p-4 mb-4 text-sm outline-none">
+                <div class="flex space-x-4"><button @click="showAddModal = false" class="flex-1 py-4 text-slate-400 font-bold">取消</button><button @click="saveItinerary" class="flex-1 py-4 bg-blue-500 text-white rounded-2xl font-bold">確認</button></div>
             </div>
         </div>
     </div>
 
     <script>
-        const { createApp, ref, watch, onMounted, computed } = Vue;
+        const { createApp, ref, onMounted, watch, nextTick, computed } = Vue;
         createApp({
             setup() {
-                const activeTab = ref(1);
-                const currentView = ref('itinerary');
+                const tab = ref('itinerary');
+                const currentDay = ref(1);
                 const showAddModal = ref(false);
+                const rateTHB = 0.95;
+
                 const todos = ref([]);
-                const itinerary = ref({ 1:[], 2:[], 3:[], 4:[], 5:[] });
-                const expenses = ref({ 1:[], 2:[], 3:[], 4:[], 5:[] });
+                const itineraries = ref({ 1: [], 2: [], 3: [], 4: [], 5: [] });
+                const expenses = ref({ 1: [], 2: [], 3: [], 4: [], 5: [] });
                 const shoppingList = ref([]);
-                const newTodo = ref('');
-                const newShopItem = ref('');
-                const newExp = ref({ title: '', amount: null });
-                const tempItem = ref({ type: '咖啡廳', time: '10:00', location: '' });
-                const restoreString = ref('');
+                const infoCenter = ref({ spots: [], medical: [] });
 
-                const backupString = computed(() => {
-                    const data = { t: todos.value, i: itinerary.value, e: expenses.value, s: shoppingList.value };
-                    return btoa(encodeURIComponent(JSON.stringify(data)));
+                const tempTodo = ref(''); const tempShop = ref('');
+                const expAmount = ref(null); const expNote = ref(''); const expCurrency = ref('THB');
+                const newEntry = ref({ category: '景點', time: '12:00', location: '' });
+
+                // 核心計算修正：總支出 (台幣)
+                const getAllTotal = computed(() => {
+                    let grandTotal = 0;
+                    for (let i = 1; i <= 5; i++) {
+                        const dayData = expenses.value[i] || [];
+                        dayData.forEach(item => {
+                            const val = Number(item.amount) || 0;
+                            grandTotal += (item.currency === 'THB' ? val * rateTHB : val);
+                        });
+                    }
+                    return Math.round(grandTotal);
                 });
 
-                // 新增：單點導航功能
-                const openGoogleMaps = (location) => {
-                    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
-                    window.open(url, '_blank');
+                // 核心計算修正：單日支出 (台幣)
+                const getDayTotal = (d) => {
+                    if (d === 'TODO' || !expenses.value[d]) return 0;
+                    let daySum = 0;
+                    expenses.value[d].forEach(item => {
+                        const val = Number(item.amount) || 0;
+                        daySum += (item.currency === 'THB' ? val * rateTHB : val);
+                    });
+                    return Math.round(daySum);
                 };
 
-                // 新增：規劃今日所有景點路線功能
-                const planDailyRoute = () => {
-                    const dayItems = itinerary.value[activeTab.value]
-                        .filter(item => item.type !== '交通' && item.location)
-                        .map(item => item.location);
-                    
-                    if (dayItems.length === 0) {
-                        alert('今天沒有景點可以規劃喔！');
-                        return;
-                    }
-
-                    const origin = encodeURIComponent(dayItems[0]);
-                    const destination = encodeURIComponent(dayItems[dayItems.length - 1]);
-                    const waypoints = dayItems.slice(1, -1).map(loc => encodeURIComponent(loc)).join('|');
-                    
-                    let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
-                    if (waypoints) url += `&waypoints=${waypoints}`;
-                    url += `&travelmode=driving`;
-                    
-                    window.open(url, '_blank');
-                };
-
-                onMounted(() => {
-                    const saved = localStorage.getItem('cm_trip_v9');
-                    if (saved) {
-                        try {
-                            const d = JSON.parse(saved);
-                            todos.value = d.t || [];
-                            itinerary.value = d.i || { 1:[], 2:[], 3:[], 4:[], 5:[] };
-                            expenses.value = d.e || { 1:[], 2:[], 3:[], 4:[], 5:[] };
-                            shoppingList.value = d.s || [];
-                        } catch(e) {}
-                    }
-                    lucide.createIcons();
-                });
-
-                watch([todos, itinerary, expenses, shoppingList, currentView], () => {
-                    localStorage.setItem('cm_trip_v9', JSON.stringify({
-                        t: todos.value, i: itinerary.value, e: expenses.value, s: shoppingList.value
-                    }));
-                    setTimeout(() => lucide.createIcons(), 10);
-                }, { deep: true });
-
-                const copyBackup = () => {
-                    navigator.clipboard.writeText(backupString.value);
-                    alert('備份碼已複製！');
-                };
-
-                const restoreData = () => {
-                    if(!confirm('確定要還原並覆蓋目前的資料嗎？')) return;
-                    try {
-                        const d = JSON.parse(decodeURIComponent(atob(restoreString.value)));
-                        todos.value = d.t; itinerary.value = d.i; expenses.value = d.e; shoppingList.value = d.s;
-                        alert('還原成功！');
-                        currentView.value = 'itinerary';
-                    } catch (e) { alert('代碼無效'); }
-                };
-
-                const saveItem = () => {
-                    if(!tempItem.value.location) return;
-                    itinerary.value[activeTab.value].push({ ...tempItem.value });
-                    showAddModal.value = false;
-                    tempItem.value = { type: '咖啡廳', time: '10:00', location: '' };
-                };
-                
-                const addTodo = () => { if(newTodo.value) { todos.value.push({ text: newTodo.value, done: false }); newTodo.value = ''; }};
-                const addShopItem = () => { if(newShopItem.value) { shoppingList.value.push({ text: newShopItem.value, done: false }); newShopItem.value = ''; }};
                 const addExpense = () => {
-                    if(newExp.value.title && newExp.value.amount) {
-                        expenses.value[activeTab.value].push({ ...newExp.value });
-                        newExp.value = { title: '', amount: null };
+                    if (!expAmount.value || !currentDay.value) return;
+                    if (!expenses.value[currentDay.value]) expenses.value[currentDay.value] = [];
+                    expenses.value[currentDay.value].push({
+                        amount: Number(expAmount.value),
+                        note: expNote.value || '日常消費',
+                        currency: expCurrency.value
+                    });
+                    expAmount.value = null; expNote.value = '';
+                };
+
+                // 其他功能
+                const exportCode = () => {
+                    const data = btoa(encodeURIComponent(JSON.stringify({ todos: todos.value, itineraries: itineraries.value, expenses: expenses.value, shoppingList: shoppingList.value, infoCenter: infoCenter.value })));
+                    navigator.clipboard.writeText(data); alert("共享碼已複製！");
+                };
+                const importCode = () => {
+                    const code = prompt("貼上共享碼：");
+                    if (code) { try { const p = JSON.parse(decodeURIComponent(atob(code))); todos.value = p.todos; itineraries.value = p.itineraries; expenses.value = p.expenses; shoppingList.value = p.shoppingList; infoCenter.value = p.infoCenter; alert("導入成功"); } catch (e) { alert("代碼錯誤"); } }
+                };
+
+                const addTodo = () => { if(tempTodo.value) { todos.value.push({text:tempTodo.value, done:false}); tempTodo.value=''; }};
+                const addShop = () => { if(tempShop.value) { shoppingList.value.push({text:tempShop.value, done:false}); tempShop.value=''; }};
+                const saveItinerary = () => { if(newEntry.value.location) { itineraries.value[currentDay.value].push({...newEntry.value}); showAddModal.value=false; newEntry.value={category:'景點', time:'12:00', location:''}; }};
+                const removeItinerary = (idx) => itineraries.value[currentDay.value].splice(idx, 1);
+
+                const saveToLocal = () => localStorage.setItem('cm_trip_final_v5', JSON.stringify({todos:todos.value, itineraries:itineraries.value, expenses:expenses.value, shoppingList:shoppingList.value, infoCenter:infoCenter.value}));
+                const loadFromLocal = () => {
+                    const d = localStorage.getItem('cm_trip_final_v5');
+                    if (d) {
+                        const p = JSON.parse(d);
+                        todos.value = p.todos || [];
+                        itineraries.value = p.itineraries || { 1: [], 2: [], 3: [], 4: [], 5: [] };
+                        expenses.value = p.expenses || { 1: [], 2: [], 3: [], 4: [], 5: [] };
+                        shoppingList.value = p.shoppingList || [];
+                        infoCenter.value = p.infoCenter || { spots: [], medical: [] };
                     }
                 };
-                const calculateDayTotal = (day) => (expenses.value[day] || []).reduce((sum, e) => sum + e.amount, 0);
 
-                return { activeTab, currentView, todos, newTodo, itinerary, expenses, newExp, shoppingList, newShopItem, showAddModal, tempItem, backupString, restoreString, saveItem, copyBackup, restoreData, addTodo, addShopItem, addExpense, calculateDayTotal, openGoogleMaps, planDailyRoute };
+                watch([todos, itineraries, expenses, shoppingList, infoCenter], saveToLocal, { deep: true });
+                onMounted(() => { loadFromLocal(); lucide.createIcons(); });
+                watch([tab, currentDay, showAddModal], () => nextTick(() => lucide.createIcons()));
+                const resetData = () => { if(confirm('重置？')) { localStorage.clear(); location.reload(); }};
+
+                return { tab, currentDay, todos, tempTodo, addTodo, itineraries, showAddModal, newEntry, saveItinerary, removeItinerary, expenses, expAmount, expNote, expCurrency, addExpense, getDayTotal, getAllTotal, shoppingList, tempShop, addShop, exportCode, importCode, resetData, rateTHB };
             }
         }).mount('#app');
     </script>
