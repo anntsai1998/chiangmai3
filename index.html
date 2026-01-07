@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>清邁·慢旅 (地圖導航版)</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500&family=Noto+Sans+TC:wght@300;400;500&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #FAF9F6; color: #57534E; }
+        .serif { font-family: 'Noto Serif TC', serif; }
+        .day-active { background-color: #78716C !important; color: #FFFFFF !important; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .safe-pb { padding-bottom: calc(5rem + env(safe-area-inset-bottom)); }
+    </style>
+</head>
+<body class="safe-pb">
+    <div id="app" class="max-w-md mx-auto min-h-screen relative">
+        
+        <header v-if="['itinerary', 'finance', 'data'].includes(currentView)" class="p-8 pb-4">
+            <h1 class="text-3xl serif tracking-wider text-stone-800">清邁 · 慢旅</h1>
+            <p class="text-[10px] text-stone-400 mt-1 uppercase tracking-widest">{{ currentView === 'data' ? 'Data Management' : 'Navigation & Plans' }}</p>
+        </header>
+
+        <div v-if="currentView === 'itinerary' || currentView === 'finance'" class="flex overflow-x-auto px-8 py-2 gap-3 hide-scrollbar">
+            <button @click="activeTab = 'todo'" :class="['flex-shrink-0 px-5 py-1.5 rounded-full text-xs transition-all border', activeTab === 'todo' ? 'day-active' : 'bg-white border-stone-200']">📋 TODO</button>
+            <button v-for="n in 5" :key="n" @click="activeTab = n" :class="['flex-shrink-0 px-5 py-1.5 rounded-full text-xs transition-all border', activeTab === n ? 'day-active' : 'bg-white border-stone-200']">DAY {{ n }}</button>
+        </div>
+
+        <main class="px-8 mt-4">
+            
+            <div v-if="currentView === 'itinerary' && activeTab !== 'todo'">
+                <div v-for="(item, index) in itinerary[activeTab]" :key="index" class="relative pl-6 border-l border-stone-200 mb-6">
+                    <div class="absolute -left-[4.5px] top-0 w-2 h-2 rounded-full bg-stone-300"></div>
+                    <div class="flex justify-between items-start">
+                        <span :class="['text-[9px] px-2 py-0.5 rounded uppercase font-bold', item.type === '交通' ? 'bg-blue-50 text-blue-500' : 'text-stone-400 bg-stone-100']">
+                            {{ item.time }} — {{ item.type }}
+                        </span>
+                        <div class="flex gap-3">
+                            <button @click="openGoogleMaps(item.location)" v-if="item.type !== '交通'" class="text-blue-500">
+                                <i data-lucide="navigation" class="w-4 h-4"></i>
+                            </button>
+                            <button @click="itinerary[activeTab].splice(index, 1)" class="text-stone-200">✕</button>
+                        </div>
+                    </div>
+                    <h3 class="font-medium text-stone-800 mt-1">{{ item.location }}</h3>
+                </div>
+                
+                <div v-if="itinerary[activeTab].length > 0" class="mb-6">
+                    <button @click="planDailyRoute" class="w-full py-4 bg-stone-100 rounded-2xl flex items-center justify-center gap-2 text-stone-600 text-xs font-bold border border-stone-200">
+                        <i data-lucide="map" class="w-4 h-4"></i> 規劃今日所有景點路線
+                    </button>
+                </div>
+
+                <button @click="showAddModal = true" class="w-full py-4 border border-dashed border-stone-300 rounded-2xl text-stone-400 text-xs">+ 新增行程/交通</button>
+            </div>
+
+            <div v-if="currentView === 'finance'">
+                <div class="text-center py-8 bg-stone-800 text-white rounded-[24px] mb-6 shadow-sm">
+                    <p class="text-[10px] opacity-60 uppercase tracking-widest">Day {{activeTab}} Total</p>
+                    <h2 class="text-3xl serif mt-2 font-light">฿ {{ calculateDayTotal(activeTab) }}</h2>
+                </div>
+                <div v-for="(exp, i) in expenses[activeTab]" :key="i" class="flex justify-between items-center text-sm mb-3 border-b border-stone-50 pb-2">
+                    <span class="font-light">{{exp.title}}</span>
+                    <div class="flex items-center gap-4">
+                        <span class="font-medium">฿{{exp.amount}}</span>
+                        <button @click="expenses[activeTab].splice(i, 1)" class="text-stone-200">✕</button>
+                    </div>
+                </div>
+                <div class="flex gap-2 mt-6">
+                    <input v-model="newExp.title" placeholder="項目" class="flex-1 bg-white border border-stone-100 p-3 rounded-xl text-xs outline-none">
+                    <input v-model.number="newExp.amount" placeholder="金額" class="w-20 bg-white border border-stone-100 p-3 rounded-xl text-xs outline-none">
+                    <button @click="addExpense" class="bg-stone-800 text-white px-5 rounded-xl text-xs">加</button>
+                </div>
+            </div>
+
+            <div v-if="currentView === 'itinerary' && activeTab === 'todo'">
+                <div v-for="(t, i) in todos" :key="i" class="flex items-center gap-3 mb-3">
+                    <input type="checkbox" v-model="t.done" class="w-4 h-4 accent-stone-700">
+                    <span :class="{'line-through text-stone-300': t.done}" class="flex-1 text-sm font-light">{{t.text}}</span>
+                    <button @click="todos.splice(i, 1)" class="text-stone-200">✕</button>
+                </div>
+                <div class="flex gap-2 mt-4">
+                    <input v-model="newTodo" @keyup.enter="addTodo" placeholder="待辦事項..." class="flex-1 bg-transparent border-b p-2 text-sm outline-none">
+                    <button @click="addTodo">＋</button>
+                </div>
+            </div>
+
+            <div v-if="currentView === 'shopping'" class="pt-8">
+                <h2 class="serif text-2xl mb-6">Shopping List</h2>
+                <div v-for="(s, i) in shoppingList" :key="i" class="flex items-center gap-3 mb-3">
+                    <input type="checkbox" v-model="s.done" class="accent-stone-700"><span :class="{'line-through text-stone-300': s.done}" class="flex-1 text-sm font-light">{{s.text}}</span><button @click="shoppingList.splice(i,1)" class="text-stone-200">✕</button>
+                </div>
+                <div class="flex gap-2 mt-4 border-b pb-2">
+                    <input v-model="newShopItem" @keyup.enter="addShopItem" placeholder="必買清單..." class="flex-1 bg-transparent text-sm outline-none"><button @click="addShopItem">＋</button>
+                </div>
+            </div>
+
+            <div v-if="currentView === 'data'" class="space-y-6">
+                <div class="bg-stone-100 p-4 rounded-xl text-[11px] text-stone-500 leading-relaxed">
+                    <strong>共享教學：</strong> 複製下方代碼傳給朋友，讓他在他的手機點擊「確認還原」即可。
+                </div>
+                <div class="space-y-4">
+                    <h3 class="text-xs font-bold">我的備份碼：</h3>
+                    <textarea v-model="backupString" class="w-full h-32 p-3 text-[10px] bg-white border rounded-xl" readonly></textarea>
+                    <button @click="copyBackup" class="w-full py-3 bg-stone-800 text-white rounded-xl text-xs">複製備份碼</button>
+                    <div class="pt-6 border-t">
+                        <h3 class="text-xs font-bold text-blue-600 mb-2">還原資料：</h3>
+                        <textarea v-model="restoreString" placeholder="貼上朋友給的代碼..." class="w-full h-32 p-3 text-[10px] border rounded-xl"></textarea>
+                        <button @click="restoreData" class="w-full mt-2 py-3 bg-blue-500 text-white rounded-xl text-xs">確認還原</button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <nav class="fixed bottom-8 left-1/2 -translate-x-1/2 w-[320px] bg-stone-800/95 backdrop-blur-md px-4 py-3 rounded-full flex justify-between items-center shadow-2xl z-40">
+            <button @click="currentView = 'itinerary'" :class="currentView === 'itinerary' ? 'text-white' : 'text-stone-500'" class="flex-1 flex flex-col items-center">
+                <i data-lucide="calendar" class="w-5 h-5"></i>
+                <span class="text-[8px] mt-1">行程</span>
+            </button>
+            <button @click="currentView = 'finance'" :class="currentView === 'finance' ? 'text-white' : 'text-stone-500'" class="flex-1 flex flex-col items-center border-l border-stone-700">
+                <i data-lucide="banknote" class="w-5 h-5"></i>
+                <span class="text-[8px] mt-1">記帳</span>
+            </button>
+            <button @click="currentView = 'shopping'" :class="currentView === 'shopping' ? 'text-white' : 'text-stone-500'" class="flex-1 flex flex-col items-center border-l border-stone-700">
+                <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+                <span class="text-[8px] mt-1">購物</span>
+            </button>
+            <button @click="currentView = 'data'" :class="currentView === 'data' ? 'text-white' : 'text-stone-500'" class="flex-1 flex flex-col items-center border-l border-stone-700">
+                <i data-lucide="database" class="w-5 h-5"></i>
+                <span class="text-[8px] mt-1">資料</span>
+            </button>
+        </nav>
+
+        <div v-if="showAddModal" class="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-8">
+            <div class="bg-white w-full rounded-[32px] p-8 space-y-4">
+                <input v-model="tempItem.location" placeholder="地點或交通 (如: Akha Ama Coffee)" class="w-full border-b p-2 text-sm outline-none">
+                <div class="flex gap-2">
+                    <input type="time" v-model="tempItem.time" class="flex-1 border-b p-2 text-xs">
+                    <select v-model="tempItem.type" class="flex-1 border-b p-2 text-xs bg-transparent">
+                        <option>咖啡廳</option><option>景點</option><option>餐廳</option><option>市集</option><option>交通</option>
+                    </select>
+                </div>
+                <button @click="saveItem" class="w-full py-3 bg-stone-800 text-white rounded-2xl text-xs mt-4">儲存</button>
+                <button @click="showAddModal = false" class="w-full text-[10px] text-stone-300 text-center">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, watch, onMounted, computed } = Vue;
+        createApp({
+            setup() {
+                const activeTab = ref(1);
+                const currentView = ref('itinerary');
+                const showAddModal = ref(false);
+                const todos = ref([]);
+                const itinerary = ref({ 1:[], 2:[], 3:[], 4:[], 5:[] });
+                const expenses = ref({ 1:[], 2:[], 3:[], 4:[], 5:[] });
+                const shoppingList = ref([]);
+                const newTodo = ref('');
+                const newShopItem = ref('');
+                const newExp = ref({ title: '', amount: null });
+                const tempItem = ref({ type: '咖啡廳', time: '10:00', location: '' });
+                const restoreString = ref('');
+
+                const backupString = computed(() => {
+                    const data = { t: todos.value, i: itinerary.value, e: expenses.value, s: shoppingList.value };
+                    return btoa(encodeURIComponent(JSON.stringify(data)));
+                });
+
+                // 新增：單點導航功能
+                const openGoogleMaps = (location) => {
+                    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+                    window.open(url, '_blank');
+                };
+
+                // 新增：規劃今日所有景點路線功能
+                const planDailyRoute = () => {
+                    const dayItems = itinerary.value[activeTab.value]
+                        .filter(item => item.type !== '交通' && item.location)
+                        .map(item => item.location);
+                    
+                    if (dayItems.length === 0) {
+                        alert('今天沒有景點可以規劃喔！');
+                        return;
+                    }
+
+                    const origin = encodeURIComponent(dayItems[0]);
+                    const destination = encodeURIComponent(dayItems[dayItems.length - 1]);
+                    const waypoints = dayItems.slice(1, -1).map(loc => encodeURIComponent(loc)).join('|');
+                    
+                    let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+                    if (waypoints) url += `&waypoints=${waypoints}`;
+                    url += `&travelmode=driving`;
+                    
+                    window.open(url, '_blank');
+                };
+
+                onMounted(() => {
+                    const saved = localStorage.getItem('cm_trip_v9');
+                    if (saved) {
+                        try {
+                            const d = JSON.parse(saved);
+                            todos.value = d.t || [];
+                            itinerary.value = d.i || { 1:[], 2:[], 3:[], 4:[], 5:[] };
+                            expenses.value = d.e || { 1:[], 2:[], 3:[], 4:[], 5:[] };
+                            shoppingList.value = d.s || [];
+                        } catch(e) {}
+                    }
+                    lucide.createIcons();
+                });
+
+                watch([todos, itinerary, expenses, shoppingList, currentView], () => {
+                    localStorage.setItem('cm_trip_v9', JSON.stringify({
+                        t: todos.value, i: itinerary.value, e: expenses.value, s: shoppingList.value
+                    }));
+                    setTimeout(() => lucide.createIcons(), 10);
+                }, { deep: true });
+
+                const copyBackup = () => {
+                    navigator.clipboard.writeText(backupString.value);
+                    alert('備份碼已複製！');
+                };
+
+                const restoreData = () => {
+                    if(!confirm('確定要還原並覆蓋目前的資料嗎？')) return;
+                    try {
+                        const d = JSON.parse(decodeURIComponent(atob(restoreString.value)));
+                        todos.value = d.t; itinerary.value = d.i; expenses.value = d.e; shoppingList.value = d.s;
+                        alert('還原成功！');
+                        currentView.value = 'itinerary';
+                    } catch (e) { alert('代碼無效'); }
+                };
+
+                const saveItem = () => {
+                    if(!tempItem.value.location) return;
+                    itinerary.value[activeTab.value].push({ ...tempItem.value });
+                    showAddModal.value = false;
+                    tempItem.value = { type: '咖啡廳', time: '10:00', location: '' };
+                };
+                
+                const addTodo = () => { if(newTodo.value) { todos.value.push({ text: newTodo.value, done: false }); newTodo.value = ''; }};
+                const addShopItem = () => { if(newShopItem.value) { shoppingList.value.push({ text: newShopItem.value, done: false }); newShopItem.value = ''; }};
+                const addExpense = () => {
+                    if(newExp.value.title && newExp.value.amount) {
+                        expenses.value[activeTab.value].push({ ...newExp.value });
+                        newExp.value = { title: '', amount: null };
+                    }
+                };
+                const calculateDayTotal = (day) => (expenses.value[day] || []).reduce((sum, e) => sum + e.amount, 0);
+
+                return { activeTab, currentView, todos, newTodo, itinerary, expenses, newExp, shoppingList, newShopItem, showAddModal, tempItem, backupString, restoreString, saveItem, copyBackup, restoreData, addTodo, addShopItem, addExpense, calculateDayTotal, openGoogleMaps, planDailyRoute };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
